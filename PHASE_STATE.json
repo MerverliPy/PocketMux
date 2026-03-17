@@ -1,0 +1,6 @@
+{
+  "current_phase": 0,
+  "phase_name": "Skeleton repo",
+  "policy": "Agents must only work inside the current phase. They must stop at phase completion and ask for explicit approval before the next phase.",
+  "manual_advance_required": true
+}

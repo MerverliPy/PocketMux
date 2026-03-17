@@ -1,0 +1,33 @@
+# macOS
+.DS_Store
+
+# Node / JS
+node_modules/
+dist/
+build/
+coverage/
+.npm/
+.pnpm-store/
+
+# Swift / Xcode
+DerivedData/
+.build/
+.swiftpm/
+*.xcworkspace/xcuserdata/
+*.xcodeproj/project.xcworkspace/xcuserdata/
+xcuserdata/
+
+# Python
+.venv/
+__pycache__/
+*.pyc
+
+# Logs
+*.log
+
+# Local env
+.env
+.env.local
+
+# Setup backups
+.setup-backups/
