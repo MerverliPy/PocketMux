@@ -4,7 +4,7 @@
 Phase 2 — Core product loop
 
 ## Current objective
-Implement the one-host connection loop: host profile, SSH connection, session discovery/reattach, top-tab session strip.
+Implement the one-host connection loop: host profile, SSH connection, session discovery/reattach, top-tab session strip, real terminal layer.
 
 ## Active constraints
 - One host only
@@ -21,26 +21,43 @@ Implement the one-host connection loop: host profile, SSH connection, session di
 - Xcode project scaffold created (Slice 3)
 - Citadel-based SSHConnection implementation added (Slice 3)
 - tmux backend error differentiation added (Slice 3)
+- Keychain entitlements added (Slice 4 — prior CI fix)
+- Terminal foundation architecture added (Slice 5)
 
-## Phase 2 Slice 3 status
+## Phase 2 Slice 5 status
 COMPLETE.
 
-## Files created or changed in Phase 2 Slice 3
-- PocketMux.xcodeproj/project.pbxproj (created)
-- PocketMux.xcodeproj/project.xcworkspace/contents.xcworkspacedata (created)
-- PocketMuxApp/Assets.xcassets/Contents.json (created)
-- PocketMuxApp/Assets.xcassets/AppIcon.appiconset/Contents.json (created)
-- PocketMuxApp/Assets.xcassets/AccentColor.colorset/Contents.json (created)
-- PocketMuxApp/SSH/SSHConnection.swift (updated — Citadel-based connection plumbing)
-- PocketMuxApp/Sessions/SessionManager.swift (updated — explicit tmux backend error differentiation)
-- PocketMuxApp/Views/SessionListView.swift (updated — UI-level session error surfacing)
+## Files created or changed in Phase 2 Slice 5
+- PocketMuxApp/Terminal/TerminalSessionState.swift (new)
+- PocketMuxApp/Terminal/TerminalAttachmentCoordinator.swift (new)
+- PocketMuxApp/Terminal/TerminalSessionService.swift (new)
+- PocketMuxApp/Terminal/TerminalRendererView.swift (new)
+- PocketMuxApp/Terminal/TerminalContainerView.swift (new)
+- PocketMuxApp/Views/TerminalView.swift (replaced stub with typealias → TerminalContainerView)
+- PocketMux.xcodeproj/project.pbxproj (updated — Terminal group + 5 source files registered)
 
-## Open items before Slice 4
-- Xcode project must be opened on macOS to resolve and fetch Citadel via SPM
-  (SPM resolution requires network access and cannot happen in WSL)
-- Compile verification is still pending in macOS/Xcode
-- SSHHostKeyValidator closure API must be verified against the actual Citadel version resolved by Xcode
-- Host key fingerprint display uses `NIOSSHPublicKey.description`, not standard OpenSSH SHA-256 wire format
-- Public key authentication path still not implemented (SecKey → NIOSSHPrivateKey bridge)
-- TerminalView.swift is an explicit stub — real VT100 renderer deferred
-- Keychain entitlements (.entitlements file) not yet created; required for device builds
+## What was implemented (Slice 5)
+- Real terminal-layer boundary with separated rendering / lifecycle / transport layers
+- TerminalSessionState enum (idle / connecting / attached / failed)
+- TerminalSessionService (@MainActor ObservableObject) owns lifecycle, drives coordinator, publishes state + outputBuffer
+- TerminalAttachmentCoordinator owns the transport boundary; attach() is a no-op stub with localized TODOs
+- TerminalRendererView — UIViewRepresentable wrapping UITextView; correct bridge shape for SwiftTerm swap
+- TerminalContainerView — real SwiftUI container with state-driven rendering and lifecycle hooks
+- TerminalView.swift replaced: now a typealias to TerminalContainerView (call site unchanged)
+
+## What remains deferred (Slice 5)
+- TerminalAttachmentCoordinator.attach() is still a no-op stub; no live SSH channel data flows yet
+- Citadel channel/shell API shape still needs compile-verification before transport wiring
+- SwiftTerm dependency not yet added; UITextView is the current rendering surface
+- PTY dimension negotiation not yet implemented
+- User keyboard input forwarding not yet wired
+
+## No new package dependency added
+UITextView used as rendering surface. SwiftTerm is the intended swap target once channel wiring is confirmed.
+
+## Open items before Slice 6
+- Verify Citadel SSHClient API for shell channels / exec channels
+- Wire TerminalAttachmentCoordinator.attach() to open a real SSH channel + PTY
+- Exec `tmux attach-session -t <sessionName>` and stream output to onOutput callback
+- Wire TerminalSessionService.send() → coordinator → channel stdin
+- Optionally add SwiftTerm at that point for full VT100 rendering
