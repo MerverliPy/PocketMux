@@ -11,6 +11,7 @@ struct TerminalContainerView: View {
 
     @StateObject private var service: TerminalSessionService
     @EnvironmentObject private var connectionManager: SSHConnectionManager
+    @State private var inputText: String = ""
 
     init(sessionName: String) {
         self.sessionName = sessionName
@@ -24,8 +25,11 @@ struct TerminalContainerView: View {
             case .idle, .connecting:
                 connectingIndicator
             case .attached:
-                TerminalRendererView(outputBuffer: service.outputBuffer)
-                    .ignoresSafeArea(edges: .bottom)
+                VStack(spacing: 0) {
+                    TerminalRendererView(outputBuffer: service.outputBuffer)
+                        .ignoresSafeArea(edges: .bottom)
+                    inputBar
+                }
             case .failed(let message):
                 failureView(message: message)
             }
@@ -45,6 +49,38 @@ struct TerminalContainerView: View {
                 .font(.system(.caption, design: .monospaced))
                 .foregroundStyle(.green.opacity(0.7))
         }
+    }
+
+    /// Minimal keyboard input bar shown while attached.
+    private var inputBar: some View {
+        HStack(spacing: 8) {
+            TextField("Input", text: $inputText)
+                .font(.system(.body, design: .monospaced))
+                .foregroundStyle(.green)
+                .tint(.green)
+                .autocorrectionDisabled()
+                .textInputAutocapitalization(.never)
+                .onSubmit { submitInput() }
+            Button(action: submitInput) {
+                Image(systemName: "arrow.up.circle.fill")
+                    .font(.title2)
+                    .foregroundStyle(.green)
+            }
+        }
+        .padding(.horizontal, 12)
+        .padding(.vertical, 8)
+        .background(Color.black)
+        .overlay(alignment: .top) {
+            Divider().overlay(Color.green.opacity(0.3))
+        }
+    }
+
+    private func submitInput() {
+        guard !inputText.isEmpty else { return }
+        // Send text + carriage return as expected by the terminal
+        let raw = inputText + "\r"
+        service.send(Data(raw.utf8))
+        inputText = ""
     }
 
     private func failureView(message: String) -> some View {

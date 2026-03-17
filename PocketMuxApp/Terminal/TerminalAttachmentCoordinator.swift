@@ -1,23 +1,29 @@
 import Foundation
 
-/// Bridges an SSH connection to a PTY + tmux attach on the remote host.
+/// Bridges TerminalSessionService to a real SSH interactive PTY session.
 ///
-/// Transport wiring is deferred to the next slice once the Citadel shell/channel
-/// API shape is verified against the resolved package version.
+/// Owns the channel lifetime for one tmux session attachment:
+///   - attach() starts the PTY session in a background Task and returns once the
+///     channel is open and the tmux command has been sent.
+///   - send(_:) forwards raw input bytes to channel stdin.
+///   - close() cancels the background task and tears down the channel.
 ///
-/// Wiring target (Slice 6):
-///   1. Open an SSH channel via Citadel (SSHClient shell or exec channel)
-///   2. Request a PTY on the channel with correct terminal dimensions
-///   3. Exec `tmux attach-session -t <sessionName>` on the channel
-///   4. Stream channel stdout/stderr bytes to `onOutput`
-///   5. Forward `send(_:)` bytes to channel stdin
+/// Only this type knows about the SSH transport layer. The service and views
+/// remain insulated from Citadel/NIO types.
 final class TerminalAttachmentCoordinator {
     let sessionName: String
 
     /// Called with raw output bytes from the remote channel.
-    /// Invoked from an arbitrary concurrency context — callers must dispatch
-    /// to the appropriate actor if UI updates are needed.
+    /// May be invoked from any concurrency context; callers must dispatch
+    /// to the appropriate actor for UI updates.
     var onOutput: ((Data) -> Void)?
+
+    /// Called when the PTY session ends after a successful attach (normal or error).
+    /// Not called when close() is used to cancel the session intentionally.
+    var onStreamEnded: ((Error?) -> Void)?
+
+    private var streamTask: Task<Void, Never>?
+    private var inputContinuation: AsyncStream<Data>.Continuation?
 
     init(sessionName: String) {
         self.sessionName = sessionName
@@ -25,26 +31,72 @@ final class TerminalAttachmentCoordinator {
 
     // MARK: - Transport
 
-    /// Establish the SSH channel, request a PTY, and attach to the tmux session.
+    /// Establish the PTY session.
     ///
-    /// Currently a no-op stub. The coordinator succeeds immediately so the
-    /// terminal layer architecture is exercise-able end-to-end before the
-    /// transport is wired.
+    /// Returns once the channel is open and `tmux attach-session` has been sent.
+    /// Output streaming continues in a background task until the session ends.
+    ///
+    /// - Throws: SSHConnection.ConnectionError.notConnected if no SSH connection is active.
+    ///           CancellationError if close() is called before the channel becomes ready.
+    ///           Any Citadel/channel error from PTY setup.
     func attach(using connectionManager: SSHConnectionManager) async throws {
-        // TODO (Slice 6): Use SSHConnectionManager to open a shell channel,
-        // negotiate PTY dimensions matching the terminal renderer bounds,
-        // and exec `tmux attach-session -t \(sessionName)`.
-        // Requires compile-verification of Citadel channel/shell API shape.
+        // Snapshot closures by value before launching background task
+        let sessionName = self.sessionName
+        let onOutput = self.onOutput
+        let onStreamEnded = self.onStreamEnded
+
+        // Input pipe: service calls send(_:) → continuation → channel stdin
+        let (inputStream, inputCont) = AsyncStream<Data>.makeStream()
+        inputContinuation = inputCont
+
+        // One-shot ready signal: yields .success once PTY is live, .failure on setup error.
+        // AsyncStream buffers the single value so the consumer always receives it even if
+        // the task signals ready before attach() begins iterating.
+        let (readyStream, readyCont) = AsyncStream<Result<Void, Error>>.makeStream()
+
+        streamTask = Task {
+            // Always close the ready stream on exit so attach() is never left hanging.
+            defer { readyCont.finish() }
+
+            do {
+                try await connectionManager.openShell(
+                    sessionName: sessionName,
+                    inputStream: inputStream,
+                    onOutput: { data in onOutput?(data) },
+                    onReady: {
+                        readyCont.yield(.success(()))
+                    }
+                )
+                // Stream ended normally (tmux detached, session exited, etc.)
+                onStreamEnded?(nil)
+            } catch {
+                guard !Task.isCancelled else { return }
+                // Signal failure via whichever channel is still relevant.
+                // If ready was already signalled, readyCont is finished and the yield is a no-op.
+                readyCont.yield(.failure(error))
+                onStreamEnded?(error)
+            }
+        }
+
+        // Wait for PTY ready signal or setup failure.
+        for await result in readyStream {
+            try result.get()
+            return
+        }
+        // readyStream drained without a value: task was cancelled before getting ready.
+        throw CancellationError()
     }
 
-    /// Write user input bytes to the remote channel's stdin.
+    /// Write raw bytes to the remote channel stdin (keyboard input).
     func send(_ data: Data) {
-        // TODO (Slice 6): Write data to the open SSH channel stdin.
-        _ = data
+        inputContinuation?.yield(data)
     }
 
-    /// Close the remote channel cleanly.
+    /// Close the remote channel and stop streaming.
     func close() async {
-        // TODO (Slice 6): Close the SSH channel and release resources.
+        inputContinuation?.finish()
+        streamTask?.cancel()
+        streamTask = nil
+        inputContinuation = nil
     }
 }
