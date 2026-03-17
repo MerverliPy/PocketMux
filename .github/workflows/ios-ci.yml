@@ -29,10 +29,23 @@ jobs:
           xcodebuild -list -project PocketMux.xcodeproj
 
       - name: Build PocketMux for iPhone Simulator
+        id: build_step
+        shell: bash
         run: |
+          set -o pipefail
           xcodebuild \
             -project PocketMux.xcodeproj \
             -scheme PocketMux \
             -destination 'generic/platform=iOS Simulator' \
             -configuration Debug \
-            build
+            build 2>&1 | tee xcodebuild.log
+
+      - name: Print first compiler errors
+        if: failure()
+        shell: bash
+        run: |
+          echo "===== FIRST 120 error-related lines ====="
+          grep -nE "error:|warning:|note:|SSHConnection.swift|Citadel|NIOSSH|SSHHostKeyValidator|executeCommand|authenticationMethod" xcodebuild.log | sed -n '1,120p' || true
+          echo
+          echo "===== LAST 80 LINES OF BUILD LOG ====="
+          tail -n 80 xcodebuild.log || true
