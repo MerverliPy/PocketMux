@@ -15,12 +15,11 @@ Produce the architectural decision documents and product spec that lock PocketMu
 - Do not expand scope to local terminal behavior
 - Do not leave dmux/tmux boundary ambiguous
 
-## Immediate work
-Phase 1 Slice 1 (complete):
-- docs/product/spec.md
-- docs/architecture/adr-001-product-scope.md
+## Completed Phase 1 work
+- docs/product/spec.md (Slice 1)
+- docs/architecture/adr-001-product-scope.md (Slice 1)
+- docs/architecture/adr-002-session-model.md (Slice 2)
+- docs/architecture/adr-003-security-model.md (Slice 2)
 
 ## Remaining Phase 1 work
-- docs/architecture/adr-002-session-model.md
-- docs/architecture/adr-003-security-model.md
-- docs/architecture/ux-map.md
+- docs/architecture/ux-map.md (Slice 3)
