@@ -40,3 +40,14 @@ Build PocketMux as an iPhone-native, remote-first SSH client for persistent remo
 - Plugin marketplace
 - Collaborative multi-user sessions
 - Overbuilt agent architecture in early phases
+
+## Phase 1 locked clarifications
+- Session model: one tab maps to one named tmux session on the remote host
+- Reattach model: reconnect by stored tmux session name; if missing, prompt the user instead of silently dropping state
+- tmux/dmux boundary: tmux is the required reliability substrate; dmux is optional metadata enrichment only
+- v1 UI scope: tmux windows and panes are not first-class UI elements
+- Security model: all credentials and host trust material live in iOS Keychain
+- Host verification: first-connect fingerprint approval is required; changed fingerprints must be refused until re-approved
+- Auth stance: public key authentication is preferred; password authentication is optional and must never be silently stored
+- Local execution: no local shell execution in v1
+- UX model: PocketMux is iPhone-only, remote-first, top-tab session switching, and one-handed use is a core product constraint

@@ -20,6 +20,8 @@ Produce the architectural decision documents and product spec that lock PocketMu
 - docs/architecture/adr-001-product-scope.md (Slice 1)
 - docs/architecture/adr-002-session-model.md (Slice 2)
 - docs/architecture/adr-003-security-model.md (Slice 2)
-
-## Remaining Phase 1 work
 - docs/architecture/ux-map.md (Slice 3)
+
+## Phase 1 status
+COMPLETE. All Phase 1 deliverables are done.
+Awaiting explicit user approval and PHASE_STATE.json advancement before Phase 2.
