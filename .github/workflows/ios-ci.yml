@@ -24,14 +24,15 @@ jobs:
             -resolvePackageDependencies \
             -project PocketMux.xcodeproj
 
-      - name: List available simulators
-        run: xcrun simctl list devices available
+      - name: Show project schemes
+        run: |
+          xcodebuild -list -project PocketMux.xcodeproj
 
       - name: Build PocketMux for iPhone Simulator
         run: |
           xcodebuild \
             -project PocketMux.xcodeproj \
             -scheme PocketMux \
-            -destination 'platform=iOS Simulator,name=iPhone 15' \
+            -destination 'generic/platform=iOS Simulator' \
             -configuration Debug \
             build
