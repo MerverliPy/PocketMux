@@ -7,6 +7,7 @@ struct SessionListView: View {
     @State private var selectedSessionID: String?
     @State private var newSessionName = ""
     @State private var showingNewSession = false
+    @State private var showingErrorAlert = false
 
     var body: some View {
         VStack(spacing: 0) {
@@ -15,12 +16,22 @@ struct SessionListView: View {
             terminalArea
         }
         .task { await viewModel.load(using: connectionManager) }
+        .onChange(of: viewModel.errorMessage) { _, newValue in
+            showingErrorAlert = (newValue != nil)
+        }
         .alert("New Session", isPresented: $showingNewSession) {
             TextField("Session name", text: $newSessionName)
                 .autocorrectionDisabled()
                 .textInputAutocapitalization(.never)
             Button("Create") { createSession() }
             Button("Cancel", role: .cancel) { newSessionName = "" }
+        }
+        .alert("Session Error", isPresented: $showingErrorAlert) {
+            Button("OK", role: .cancel) {
+                viewModel.errorMessage = nil
+            }
+        } message: {
+            Text(viewModel.errorMessage ?? "Unknown session error.")
         }
         .toolbar {
             ToolbarItem(placement: .topBarTrailing) {
@@ -88,7 +99,9 @@ struct SessionListView: View {
         guard !name.isEmpty else { return }
         Task {
             await viewModel.createAndSelect(name: name, using: connectionManager)
-            selectedSessionID = name
+            if viewModel.sessions.contains(where: { $0.id == name }) {
+                selectedSessionID = name
+            }
         }
     }
 }
@@ -122,15 +135,26 @@ private struct SessionTab: View {
 @MainActor
 final class SessionListViewModel: ObservableObject {
     @Published var sessions: [SessionRecord] = []
+    @Published var errorMessage: String?
 
     func load(using manager: SSHConnectionManager) async {
         let sm = SessionManager(connectionManager: manager)
-        sessions = (try? await sm.listSessions()) ?? []
+        do {
+            sessions = try await sm.listSessions()
+            errorMessage = nil
+        } catch {
+            errorMessage = "Failed to load tmux sessions: \(String(describing: error))"
+        }
     }
 
     func createAndSelect(name: String, using manager: SSHConnectionManager) async {
         let sm = SessionManager(connectionManager: manager)
-        try? await sm.ensureSessionExists(sessionName: name)
-        await load(using: manager)
+        do {
+            try await sm.ensureSessionExists(sessionName: name)
+            await load(using: manager)
+            errorMessage = nil
+        } catch {
+            errorMessage = "Failed to create tmux session: \(String(describing: error))"
+        }
     }
 }
