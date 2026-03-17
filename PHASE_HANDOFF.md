@@ -1,31 +1,25 @@
 # PHASE_HANDOFF
 
 ## Completed
-- PocketMux concept was converted into a structured implementation blueprint
-- Balanced implementation phases were defined
-- Minimal Claude Code repo artifact pack was selected
+- Phase 0: minimal repo artifact pack created and committed
+- Phase 1 Slice 1: docs/product/spec.md and docs/architecture/adr-001-product-scope.md created
 
 ## Remaining in current phase
-- Create or verify the Phase 0 repo files
-- Confirm the repo is ready to begin Phase 1 cleanly
+- docs/architecture/adr-002-session-model.md
+- docs/architecture/adr-003-security-model.md
+- docs/architecture/ux-map.md
 
-## Files touched
-- CLAUDE.md
-- .claude/settings.json
-- PROJECT_MEMORY.md
+## Files touched this phase
 - COMPACT_CONTEXT.md
 - PHASE_HANDOFF.md
-- PHASE_STATE.json
-- docs/plan/IMPLEMENTATION_PHASES.md
+- docs/product/spec.md
+- docs/architecture/adr-001-product-scope.md
 
 ## Current risks
-- Product could drift toward generic terminal scope
-- dmux vs tmux responsibilities could remain ambiguous
-- Reconnect behavior could be under-specified too long
-- Terminal renderer choice could create downstream rework
+- Session model reconnect behavior still under-specified
+- Terminal renderer choice deferred and could create downstream rework
+- dmux/tmux boundary still needs explicit treatment in adr-002
 
 ## Exact next action
-Complete Phase 0 only.
-When Phase 0 is complete, stop and hand off.
-Ask the user for permission before Phase 1.
-The user should manually run `./scripts/advance-phase.sh 1` before Phase 1 begins.
+Complete Phase 1 Slices 2–3 only after explicit user approval.
+Do not begin Phase 2 until the user approves it and PHASE_STATE.json is manually advanced to 2.
