@@ -1,6 +1,6 @@
 {
-  "current_phase": 1,
-  "phase_name": "Foundation",
+  "current_phase": 2,
+  "phase_name": "Core product loop",
   "policy": "Agents must only work inside the current phase. They must stop at phase completion and ask for explicit approval before the next phase.",
   "manual_advance_required": true
 }
