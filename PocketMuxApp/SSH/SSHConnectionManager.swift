@@ -78,10 +78,20 @@ final class SSHConnectionManager: ObservableObject {
 
     /// Passthrough to SSHConnection.openInteractiveShell.
     ///
-    /// Slice 6B.2: opens a real PTY channel; drains inbound only — tmux command added in 6B.3.
-    func openInteractiveShell(cols: Int = 80, rows: Int = 24) async throws {
+    /// Slice 6B.3: sends tmux attach command and forwards output bytes via `onOutput`.
+    func openInteractiveShell(
+        sessionName: String,
+        cols: Int = 80,
+        rows: Int = 24,
+        onOutput: @escaping (Data) -> Void
+    ) async throws {
         guard let connection else { throw SSHConnection.ConnectionError.notConnected }
-        try await connection.openInteractiveShell(cols: cols, rows: rows)
+        try await connection.openInteractiveShell(
+            sessionName: sessionName,
+            cols: cols,
+            rows: rows,
+            onOutput: onOutput
+        )
     }
 
     // MARK: - Private

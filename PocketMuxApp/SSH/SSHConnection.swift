@@ -72,13 +72,19 @@ actor SSHConnection {
         return String(buffer: stdout)
     }
 
-    // MARK: - Interactive Shell (Slice 6B.2 — real PTY open, no tmux command yet)
+    // MARK: - Interactive Shell (Slice 6B.3 — tmux attach command + output forwarding)
 
-    /// Opens a PTY channel via Citadel `withPTY`.
+    /// Opens a PTY channel, sends `tmux attach-session -t <sessionName>`, and
+    /// forwards raw output bytes to `onOutput` until the remote session ends.
     ///
-    /// Slice 6B.2: channel opens and inbound is drained; no tmux attach command yet.
-    /// `cols`/`rows` use typical defaults — dynamic resize is wired in a later slice.
-    func openInteractiveShell(cols: Int = 80, rows: Int = 24) async throws {
+    /// Blocks until the session ends or the task is cancelled.
+    /// Input forwarding and dynamic resize are wired in later slices.
+    func openInteractiveShell(
+        sessionName: String,
+        cols: Int = 80,
+        rows: Int = 24,
+        onOutput: @escaping (Data) -> Void
+    ) async throws {
         guard let client else { throw ConnectionError.notConnected }
 
         let ptyRequest = SSHChannelRequestEvent.PseudoTerminalRequest(
@@ -91,9 +97,18 @@ actor SSHConnection {
             terminalModes: .init([:])
         )
 
-        try await client.withPTY(ptyRequest) { inbound, _ in
-            // Slice 6B.2: drain output to keep the channel alive; tmux command added in 6B.3.
-            for try await _ in inbound { }
+        try await client.withPTY(ptyRequest) { inbound, outbound in
+            let cmd = ByteBuffer(string: "tmux attach-session -t \(sessionName)\n")
+            try await outbound.write(cmd)
+
+            for try await chunk in inbound {
+                switch chunk {
+                case .stdout(let buf):
+                    onOutput(Data(buf.readableBytesView))
+                case .stderr(let buf):
+                    onOutput(Data(buf.readableBytesView))
+                }
+            }
         }
     }
 
