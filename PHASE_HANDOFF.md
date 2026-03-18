@@ -192,20 +192,24 @@ CI result
 - branch: `feat/slice6b-transport`
 - commit: `b9425ba`
 
-Slice 6B.3 — tmux attach command execution — **NEXT**
+Slice 6B.3 — tmux attach command execution — **COMPLETE (2026-03-17)**
 
 Goal
 - Send `tmux attach-session -t <sessionName>` after the shell/channel is ready.
 
-Deliverables
-- remote attach command wired
-- minimal output plumbing into terminal session service
+Delivered
+- `SSHConnection.openInteractiveShell(sessionName:cols:rows:onOutput:)` — writes tmux attach command to remote stdin; forwards inbound `ExecCommandOutput` bytes to `onOutput` closure
+- `SSHConnectionManager.openInteractiveShell(sessionName:cols:rows:onOutput:)` — passthrough updated
+- `TerminalAttachmentCoordinator.attach(using:)` — starts PTY session on background `Task`; wires `onOutput`; `close()` cancels the task
+- `import NIO` added to SSHConnection.swift (required for `ByteBuffer(string:)` and `readableBytesView` — not re-exported by Citadel/NIOSSH)
 
-Acceptance
-- compile passes
-- command path is integrated without breaking architecture
+CI result
+- run ID: `23229029983`
+- result: success
+- branch: `feat/slice6b-transport`
+- commit: `17f0c38`
 
-Slice 6B.4 — input forwarding
+Slice 6B.4 — input forwarding — **NEXT**
 
 Goal
 - Wire user keyboard input into remote stdin.
