@@ -124,6 +124,7 @@ Required verification rule
 ## SLICE 6B RECOMMENDED SUB-SLICES
 
 Slice 6B.1 — API verification only — **COMPLETE (2026-03-17)**
+Note: PseudoTerminalRequest init guessed in 6B.1 was partially wrong — see 6B.2 for corrected signature.
 
 Verified facts (source: Citadel 0.12.0 at orlandos-nl/Citadel, confirmed via GitHub source fetch)
 
@@ -162,38 +163,36 @@ Key decisions from API review:
   — iOS 17 compile behavior is unconfirmed; CI must verify before relying on it
 - The `withPTY` closure owns the session lifetime; detach/cancel happens via task cancellation or closing the `perform` closure normally
 
-Slice 6B.2 — channel open + ready handshake — **NEXT**
+Slice 6B.2 — channel open + ready handshake — **COMPLETE (2026-03-17)**
 
 Goal
-- Replace `openInteractiveShell()` stub in `SSHConnection` with a real `withPTY` call that compiles and stays green in CI.
+- Replace `openInteractiveShell()` stub in `SSHConnection` with a real `withPTY` call.
 
-Exact API to use:
+Confirmed actual NIOSSH 0.3.5 `PseudoTerminalRequest` init (differs from documented guess):
 ```swift
-try await client.withPTY(
-    SSHChannelRequestEvent.PseudoTerminalRequest(
-        term: "xterm-256color",
-        terminalCharacterWidth: UInt32(cols),
-        terminalRowHeight: UInt32(rows),
-        terminalPixelWidth: 0,
-        terminalPixelHeight: 0,
-        terminalModes: .init([])
-    )
-) { inbound, outbound in
-    // minimal: drain inbound and hold open; no tmux command yet
-}
+SSHChannelRequestEvent.PseudoTerminalRequest(
+    wantReply: true,               // required — not in earlier docs
+    term: "xterm-256color",
+    terminalCharacterWidth: cols,  // Int, NOT UInt32
+    terminalRowHeight: rows,       // Int, NOT UInt32
+    terminalPixelWidth: 0,
+    terminalPixelHeight: 0,
+    terminalModes: .init([:])      // dictionary literal, NOT array
+)
 ```
 
-Deliverables
-- `SSHConnection.openInteractiveShell()` replaced with real `withPTY` path (no longer throws `.notYetImplemented`)
-- closure receives `(TTYOutput, TTYStdinWriter)` — store or pass upstream
-- no tmux attach command yet (added in 6B.3)
+Delivered
+- `SSHConnection.openInteractiveShell(cols:rows:)` — real `withPTY` call, drains inbound
+- `SSHConnectionManager.openInteractiveShell(cols:rows:)` — matching passthrough
+- `@available(macOS 15.0, *)` does NOT block iOS 17 Simulator build — confirmed
 
-Acceptance
-- app compiles
-- CI green on `feat/slice6b-transport` branch
-- `@available(macOS 15.0, *)` does not cause iOS 17 build error (first real confirmation)
+CI result
+- run ID: `23228501849`
+- result: success
+- branch: `feat/slice6b-transport`
+- commit: `b9425ba`
 
-Slice 6B.3 — tmux attach command execution
+Slice 6B.3 — tmux attach command execution — **NEXT**
 
 Goal
 - Send `tmux attach-session -t <sessionName>` after the shell/channel is ready.

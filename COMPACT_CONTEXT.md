@@ -4,19 +4,19 @@
 Phase 2 — Core product loop
 
 ## Current slice
-Slice 6A complete; Slice 6B next
+Slice 6B.2 complete; Slice 6B.3 next
 
 ## Current objective
 Keep the one-host PocketMux terminal path stable while moving from a compile-safe interactive shell boundary toward real remote tmux attach transport in small CI-verified increments.
 
 ## Verified repository state
-- `main` is green again after reverting the broken Slice 6 PTY/channel attempt
-- branch `feat/slice6-redo` contains the compile-safe interactive shell boundary
-- `feat/slice6-redo` passed GitHub Actions iOS CI
+- branch `feat/slice6b-transport` contains real `withPTY` channel open (Slice 6B.2)
+- `feat/slice6b-transport` passed GitHub Actions iOS CI
 - verified green run:
   - workflow: `PocketMux iOS CI`
-  - run ID: `23225534283`
-  - commit: `a39288b`
+  - run ID: `23228501849`
+  - commit: `b9425ba`
+- `@available(macOS 15.0, *)` on `withPTY` does NOT block iOS 17 Simulator build (confirmed)
 
 ## Active constraints
 - one host only
@@ -28,7 +28,7 @@ Keep the one-host PocketMux terminal path stable while moving from a compile-saf
 - do not claim PTY/tmux transport is complete before CI proves it
 - keep GitHub Actions green after each transport increment
 
-## What is complete through Slice 6A
+## What is complete through Slice 6B.2
 - product scope and architecture docs established
 - Xcode project scaffold exists
 - Citadel-based SSH connection path exists
@@ -41,17 +41,27 @@ Keep the one-host PocketMux terminal path stable while moving from a compile-saf
   - `TerminalAttachmentCoordinator`
   - `TerminalRendererView`
   - `TerminalContainerView`
-- compile-safe interactive shell boundary exists in:
-  - `PocketMuxApp/SSH/SSHConnection.swift`
-  - `PocketMuxApp/SSH/SSHConnectionManager.swift`
+- real `withPTY` channel open (Slice 6B.2) in:
+  - `PocketMuxApp/SSH/SSHConnection.swift` — drains inbound, no tmux command yet
+  - `PocketMuxApp/SSH/SSHConnectionManager.swift` — matching passthrough
 
-## What Slice 6A intentionally does not implement
-- no `withPTY`
-- no `PseudoTerminalRequest`
-- no `TTYOutput`
-- no `TTYStdinWriter`
-- no live `tmux attach-session`
-- no `ByteBuffer` streaming implementation
+## Confirmed PseudoTerminalRequest init (actual NIOSSH 0.3.5 signature)
+```swift
+SSHChannelRequestEvent.PseudoTerminalRequest(
+    wantReply: Bool,
+    term: String,
+    terminalCharacterWidth: Int,   // NOT UInt32
+    terminalRowHeight: Int,        // NOT UInt32
+    terminalPixelWidth: Int,
+    terminalPixelHeight: Int,
+    terminalModes: SSHTerminalModes  // init([:]) dictionary, NOT array
+)
+```
+
+## What Slice 6B.2 intentionally does not implement
+- no tmux attach-session command (Slice 6B.3)
+- no output wired to TerminalSessionService
+- no input forwarding from user
 - no dynamic PTY resize
 - no ANSI / VT100 parsing
 - no special key forwarding
@@ -107,12 +117,13 @@ func changeSize(cols: Int, rows: Int, pixelWidth: Int, pixelHeight: Int) async t
 - `@available(macOS 15.0, *)` — `*` covers iOS without a version floor; compile on iOS 17 target needs CI confirmation before relying on this
 - tmux requires PTY → use `withPTY`, not `withTTY`
 
-## Slice 6B target
-Implement real interactive tmux attach transport behind the existing boundary in small steps:
+## Slice 6B progress
 1. ~~verify actual resolved Citadel interactive shell / PTY API~~ **done — Slice 6B.1**
-2. add the smallest real transport increment (Slice 6B.2: channel open via `withPTY`)
-3. keep CI green
-4. stop on red and fix only the smallest failing assumption
+2. ~~channel open via `withPTY`, drains inbound~~ **done — Slice 6B.2 (CI run 23228501849)**
+3. send `tmux attach-session -t <name>` after channel open — **Slice 6B.3, next**
+4. wire remote output to TerminalSessionService — Slice 6B.3/4
+5. wire user input to remote stdin — Slice 6B.4
+6. lifecycle hardening — Slice 6B.5
 
 ## Highest-priority files for Slice 6B
 - `PocketMuxApp/SSH/SSHConnection.swift`
