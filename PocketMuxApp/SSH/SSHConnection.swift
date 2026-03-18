@@ -1,4 +1,5 @@
 import Foundation
+import NIO
 import Citadel
 import NIOSSH
 
