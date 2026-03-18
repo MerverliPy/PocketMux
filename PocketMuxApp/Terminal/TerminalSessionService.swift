@@ -34,34 +34,17 @@ final class TerminalSessionService: ObservableObject {
         state = .connecting
 
         let coord = TerminalAttachmentCoordinator(sessionName: sessionName)
-
         coord.onOutput = { [weak self] data in
             guard let text = String(data: data, encoding: .utf8) else { return }
             Task { @MainActor [weak self] in
                 self?.outputBuffer.append(text)
             }
         }
-
-        coord.onStreamEnded = { [weak self] error in
-            Task { @MainActor [weak self] in
-                guard let self, self.coordinator != nil else { return }
-                self.coordinator = nil
-                if let error {
-                    self.state = .failed(error.localizedDescription)
-                } else {
-                    self.state = .failed("Session ended. Tap Retry to re-attach.")
-                }
-            }
-        }
-
         coordinator = coord
 
         do {
             try await coord.attach(using: connectionManager)
             state = .attached
-        } catch is CancellationError {
-            // Cancelled intentionally (detach/reconnect); don't flash an error.
-            coordinator = nil
         } catch {
             coordinator = nil
             state = .failed(error.localizedDescription)
@@ -75,7 +58,7 @@ final class TerminalSessionService: ObservableObject {
         state = .idle
     }
 
-    /// Forward user input to the remote channel stdin.
+    /// Forward user input to the remote channel.
     func send(_ data: Data) {
         coordinator?.send(data)
     }

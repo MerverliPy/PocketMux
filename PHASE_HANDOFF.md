@@ -9,35 +9,37 @@
 - Phase 2 Slice 3: Xcode project scaffold created; Citadel-based SSHConnection implementation added; tmux backend error differentiation added
 - Phase 2 Slice 4: Keychain entitlements added; CI iOS simulator build fixed
 - Phase 2 Slice 5: Terminal foundation architecture introduced; fake placeholder replaced
-- Phase 2 Slice 6: SSH channel + PTY + tmux attach wired; keyboard input bar added
 
-## Phase 2 Slice 6 status
-COMPLETE — pending CI green on GitHub Actions.
+## Phase 2 Slice 5 status
+COMPLETE.
 
-## Files changed in Phase 2 Slice 6
-- PocketMuxApp/SSH/SSHConnection.swift (openShell added)
-- PocketMuxApp/SSH/SSHConnectionManager.swift (openShell passthrough added)
-- PocketMuxApp/Terminal/TerminalAttachmentCoordinator.swift (real PTY wiring)
-- PocketMuxApp/Terminal/TerminalSessionService.swift (onStreamEnded + CancellationError handling)
-- PocketMuxApp/Terminal/TerminalContainerView.swift (keyboard input bar)
+## Files created or changed in Phase 2 Slice 5
+- PocketMuxApp/Terminal/TerminalSessionState.swift (new)
+- PocketMuxApp/Terminal/TerminalAttachmentCoordinator.swift (new)
+- PocketMuxApp/Terminal/TerminalSessionService.swift (new)
+- PocketMuxApp/Terminal/TerminalRendererView.swift (new)
+- PocketMuxApp/Terminal/TerminalContainerView.swift (new)
+- PocketMuxApp/Views/TerminalView.swift (stub removed; now typealias → TerminalContainerView)
+- PocketMux.xcodeproj/project.pbxproj (Terminal group + 5 files registered)
 
 ## Current risks
-- SSHHostKeyValidator is still `.acceptAnything()` — not production-safe (ADR-003 violation)
-- Public-key authentication still not implemented (throws .notYetImplemented)
-- PTY dimensions are fixed 220×50; no dynamic resize — tmux may render incorrectly on smaller screens
-- UITextView renderer has no VT100/ANSI parsing; escape sequences render as raw text
-- Special key forwarding (Ctrl-C, arrow keys, Tab, Escape) not yet implemented
-- The `@available(macOS 15.0, *)` annotation on Citadel's withPTY/TTYOutput only restricts macOS; verified safe for iOS 17 target
+- TerminalAttachmentCoordinator.attach() is a no-op stub; state transitions to .attached immediately with no live data
+- Citadel channel/shell API shape has not been compile-verified; transport wiring is blocked on that
+- UITextView is the current rendering surface (no VT100 byte parsing); SwiftTerm swap deferred
+- SSHHostKeyValidator is still `.acceptAnything()` — not production-safe
+- Public-key authentication still not implemented
+- macOS/Xcode compile verification of Slice 5 still pending (WSL environment)
 
-## Exact next actions for Phase 2 Slice 7
-1. Confirm CI passes for Slice 6 changes
-2. Address VT100/ANSI rendering — SwiftTerm is the intended swap target:
-   a. Add SwiftTerm as a SwiftPM dependency
-   b. Replace UITextView in TerminalRendererView with SwiftTerm.TerminalView (UIViewRepresentable bridge shape already correct)
-   c. Wire TerminalAttachmentCoordinator.onOutput bytes directly into SwiftTerm's feed(byteArray:) API
-3. Add special key forwarding (Ctrl-C = \x03, arrow keys = ESC sequences, Tab = \x09)
-4. Add dynamic PTY resize via TTYStdinWriter.changeSize() on orientation change
-5. Replace `.acceptAnything()` with real host-key trust model (ADR-003)
-6. Keep scope limited to one-host, iPhone-only, remote tmux
+## Exact next actions for Phase 2 Slice 6
+1. Open PocketMux.xcodeproj on macOS with Xcode 15+ and confirm Slice 5 compiles cleanly
+2. Inspect Citadel resolved version for shell channel / exec channel API surface
+3. Wire TerminalAttachmentCoordinator.attach() to:
+   a. Open SSH shell channel via Citadel
+   b. Request PTY with dimensions from the renderer's bounds
+   c. Exec `tmux attach-session -t <sessionName>`
+   d. Stream stdout/stderr bytes to `onOutput`
+4. Wire TerminalSessionService.send(_:) → coordinator → channel stdin
+5. Optionally add SwiftTerm as the rendering dependency at this point for VT100 byte parsing
+6. Keep scope limited to one-host interactive attach only
 
 Do not begin Phase 3.

@@ -23,38 +23,41 @@ Implement the one-host connection loop: host profile, SSH connection, session di
 - tmux backend error differentiation added (Slice 3)
 - Keychain entitlements added (Slice 4 — prior CI fix)
 - Terminal foundation architecture added (Slice 5)
-- SSH channel + PTY + tmux attach wired (Slice 6)
 
-## Phase 2 Slice 6 status
+## Phase 2 Slice 5 status
 COMPLETE.
 
-## Files created or changed in Phase 2 Slice 6
-- PocketMuxApp/SSH/SSHConnection.swift (updated — openShell added)
-- PocketMuxApp/SSH/SSHConnectionManager.swift (updated — openShell passthrough added)
-- PocketMuxApp/Terminal/TerminalAttachmentCoordinator.swift (updated — real PTY wiring)
-- PocketMuxApp/Terminal/TerminalSessionService.swift (updated — onStreamEnded wiring, CancellationError handling)
-- PocketMuxApp/Terminal/TerminalContainerView.swift (updated — keyboard input bar added)
+## Files created or changed in Phase 2 Slice 5
+- PocketMuxApp/Terminal/TerminalSessionState.swift (new)
+- PocketMuxApp/Terminal/TerminalAttachmentCoordinator.swift (new)
+- PocketMuxApp/Terminal/TerminalSessionService.swift (new)
+- PocketMuxApp/Terminal/TerminalRendererView.swift (new)
+- PocketMuxApp/Terminal/TerminalContainerView.swift (new)
+- PocketMuxApp/Views/TerminalView.swift (replaced stub with typealias → TerminalContainerView)
+- PocketMux.xcodeproj/project.pbxproj (updated — Terminal group + 5 source files registered)
 
-## What was implemented (Slice 6)
-- SSHConnection.openShell(): opens PTY via Citadel withPTY, sends `tmux attach-session -t <name>\r`, streams output/input
-- SSHConnectionManager.openShell(): thin passthrough, keeps main actor free during streaming
-- TerminalAttachmentCoordinator: background Task with AsyncStream<Data> input pipe; ready-signal via AsyncStream<Result<Void,Error>>; onStreamEnded callback notifies service when session ends
-- TerminalSessionService: wires onStreamEnded to transition state after session ends; handles CancellationError separately from real errors
-- TerminalContainerView: adds minimal keyboard input bar (TextField + send button) in attached state
+## What was implemented (Slice 5)
+- Real terminal-layer boundary with separated rendering / lifecycle / transport layers
+- TerminalSessionState enum (idle / connecting / attached / failed)
+- TerminalSessionService (@MainActor ObservableObject) owns lifecycle, drives coordinator, publishes state + outputBuffer
+- TerminalAttachmentCoordinator owns the transport boundary; attach() is a no-op stub with localized TODOs
+- TerminalRendererView — UIViewRepresentable wrapping UITextView; correct bridge shape for SwiftTerm swap
+- TerminalContainerView — real SwiftUI container with state-driven rendering and lifecycle hooks
+- TerminalView.swift replaced: now a typealias to TerminalContainerView (call site unchanged)
 
-## Citadel API used (verified from source)
-- SSHClient.withPTY(_ request: SSHChannelRequestEvent.PseudoTerminalRequest, perform: (TTYOutput, TTYStdinWriter) async throws -> Void) async throws
-- TTYOutput: AsyncSequence where Element = ExecCommandOutput (.stdout(ByteBuffer) | .stderr(ByteBuffer))
-- TTYStdinWriter.write(_ buffer: ByteBuffer) async throws
-- @available(macOS 15.0, *) on withPTY and TTYOutput — not an iOS restriction; fine for iOS 17 target
+## What remains deferred (Slice 5)
+- TerminalAttachmentCoordinator.attach() is still a no-op stub; no live SSH channel data flows yet
+- Citadel channel/shell API shape still needs compile-verification before transport wiring
+- SwiftTerm dependency not yet added; UITextView is the current rendering surface
+- PTY dimension negotiation not yet implemented
+- User keyboard input forwarding not yet wired
 
-## What remains deferred (Slice 6)
-- PTY dimensions are fixed (220×50); no dynamic resize on orientation change
-- UITextView renderer does not parse VT100/ANSI escape sequences; output may contain control characters
-- No special key forwarding (Escape, Ctrl-C, arrow keys, Tab) — text field input only
-- SSHHostKeyValidator still `.acceptAnything()` — not production-safe
-- Public-key authentication still not implemented
+## No new package dependency added
+UITextView used as rendering surface. SwiftTerm is the intended swap target once channel wiring is confirmed.
 
-## Architecture state
-The terminal transport is complete end-to-end:
-  TerminalContainerView → TerminalSessionService → TerminalAttachmentCoordinator → SSHConnectionManager → SSHConnection → Citadel withPTY → tmux attach-session
+## Open items before Slice 6
+- Verify Citadel SSHClient API for shell channels / exec channels
+- Wire TerminalAttachmentCoordinator.attach() to open a real SSH channel + PTY
+- Exec `tmux attach-session -t <sessionName>` and stream output to onOutput callback
+- Wire TerminalSessionService.send() → coordinator → channel stdin
+- Optionally add SwiftTerm at that point for full VT100 rendering

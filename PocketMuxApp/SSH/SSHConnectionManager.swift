@@ -76,26 +76,6 @@ final class SSHConnectionManager: ObservableObject {
         return try await connection.exec(command)
     }
 
-    /// Open an interactive PTY shell on the active connection.
-    ///
-    /// Suspends for the lifetime of the PTY session; call sites should run this
-    /// in a background Task. The main actor is released once the SSHConnection
-    /// actor takes over the call.
-    func openShell(
-        sessionName: String,
-        inputStream: AsyncStream<Data>,
-        onOutput: @escaping (Data) -> Void,
-        onReady: @escaping () -> Void
-    ) async throws {
-        guard let connection else { throw SSHConnection.ConnectionError.notConnected }
-        try await connection.openShell(
-            sessionName: sessionName,
-            inputStream: inputStream,
-            onOutput: onOutput,
-            onReady: onReady
-        )
-    }
-
     // MARK: - Private
 
     private func reset() {
