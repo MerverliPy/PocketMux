@@ -72,15 +72,28 @@ actor SSHConnection {
         return String(buffer: stdout)
     }
 
-    // MARK: - Interactive Shell (boundary stub — Slice 6A)
+    // MARK: - Interactive Shell (Slice 6B.2 — real PTY open, no tmux command yet)
 
-    /// Placeholder for a future interactive shell channel.
+    /// Opens a PTY channel via Citadel `withPTY`.
     ///
-    /// PTY request, shell channel streaming, and tmux attach wiring are all deferred to Slice 6B.
-    /// This method exists only to establish the API boundary so call sites can be written
-    /// and compile-verified without committing to a specific Citadel channel API.
-    func openInteractiveShell() async throws {
-        throw ConnectionError.notYetImplemented
+    /// Slice 6B.2: channel opens and inbound is drained; no tmux attach command yet.
+    /// `cols`/`rows` use typical defaults — dynamic resize is wired in a later slice.
+    func openInteractiveShell(cols: Int = 80, rows: Int = 24) async throws {
+        guard let client else { throw ConnectionError.notConnected }
+
+        let ptyRequest = SSHChannelRequestEvent.PseudoTerminalRequest(
+            term: "xterm-256color",
+            terminalCharacterWidth: UInt32(cols),
+            terminalRowHeight: UInt32(rows),
+            terminalPixelWidth: 0,
+            terminalPixelHeight: 0,
+            terminalModes: .init([])
+        )
+
+        try await client.withPTY(ptyRequest) { inbound, _ in
+            // Slice 6B.2: drain output to keep the channel alive; tmux command added in 6B.3.
+            for try await _ in inbound { }
+        }
     }
 
     // MARK: - Disconnect
