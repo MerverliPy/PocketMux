@@ -1,53 +1,294 @@
-# PHASE_HANDOFF
+# POCKETMUX — PHASE 2 HANDOFF
+## Slice 6A complete / Slice 6B next
 
-## Completed
-- Phase 1 Slice 1: docs/product/spec.md and docs/architecture/adr-001-product-scope.md created
-- Phase 1 Slice 2: docs/architecture/adr-002-session-model.md and docs/architecture/adr-003-security-model.md created
-- Phase 1 Slice 3: docs/architecture/ux-map.md created
-- Phase 2 Slice 1: docs/architecture/session-state-machine.md created; Phase 2 minimum file set identified
-- Phase 2 Slice 2: dependency manifest and minimum Swift source files created for the one-host loop
-- Phase 2 Slice 3: Xcode project scaffold created; Citadel-based SSHConnection implementation added; tmux backend error differentiation added
-- Phase 2 Slice 4: Keychain entitlements added; CI iOS simulator build fixed
-- Phase 2 Slice 5: Terminal foundation architecture introduced; fake placeholder replaced
+---
 
-## Phase 2 Slice 5 status
-COMPLETE.
+## CURRENT VERIFIED STATE
 
-## Phase 2 Slice 6A status
-COMPLETE.
+Repository state
+- `main` is green again
+- the failing Slice 6 transport commit was reverted on `main`
+- a compile-safe interactive shell boundary was rebuilt on branch `feat/slice6-redo`
 
-## Files changed in Phase 2 Slice 6A
-- PocketMuxApp/SSH/SSHConnection.swift — added `openInteractiveShell() async throws` stub (throws `.notYetImplemented`)
-- PocketMuxApp/SSH/SSHConnectionManager.swift — added `openInteractiveShell()` passthrough
+Verified green branch
+- Branch: `feat/slice6-redo`
+- Commit: `a39288b`
+- CI run ID: `23225534283`
+- Workflow: `PocketMux iOS CI`
+- Result: `success`
 
-## Files created or changed in Phase 2 Slice 5
-- PocketMuxApp/Terminal/TerminalSessionState.swift (new)
-- PocketMuxApp/Terminal/TerminalAttachmentCoordinator.swift (new)
-- PocketMuxApp/Terminal/TerminalSessionService.swift (new)
-- PocketMuxApp/Terminal/TerminalRendererView.swift (new)
-- PocketMuxApp/Terminal/TerminalContainerView.swift (new)
-- PocketMuxApp/Views/TerminalView.swift (stub removed; now typealias → TerminalContainerView)
-- PocketMux.xcodeproj/project.pbxproj (Terminal group + 5 files registered)
+Meaning
+- Slice 6A is complete: the codebase now contains a compile-safe boundary for future interactive shell work without reintroducing the PTY/channel implementation that previously broke the build.
 
-## Current risks
-- TerminalAttachmentCoordinator.attach() is a no-op stub; state transitions to .attached immediately with no live data
-- SSHConnection.openInteractiveShell() throws notYetImplemented — no channel is opened yet
-- Citadel shell channel API shape has not been compile-verified on macOS/Xcode
-- UITextView is the current rendering surface (no VT100 byte parsing); SwiftTerm swap deferred
-- SSHHostKeyValidator is still `.acceptAnything()` — not production-safe
-- Public-key authentication still not implemented
+---
 
-## Exact next actions for Phase 2 Slice 6B
-1. Open PocketMux.xcodeproj on macOS with Xcode 15+ and confirm Slice 6A compiles cleanly
-2. Inspect Citadel resolved version for the shell / exec channel API (SSHClient.openShell or executeCommand variants)
-3. Implement SSHConnection.openInteractiveShell() to:
-   a. Open a real Citadel shell channel
-   b. Return or store a channel handle for streaming
-4. Wire TerminalAttachmentCoordinator.attach() to call openInteractiveShell, then:
-   a. Request PTY with renderer-reported dimensions
-   b. Exec `tmux attach-session -t <sessionName>`
-   c. Stream stdout/stderr bytes to onOutput callback
-5. Wire TerminalSessionService.send(_:) → coordinator → channel stdin
-6. Optionally add SwiftTerm for VT100 rendering once streaming is confirmed
+## SLICE 6A — COMPLETE
 
-Do not begin Phase 3.
+Objective
+- Introduce a compile-safe interactive shell boundary without wiring real SSH PTY transport yet.
+
+Outcome
+- Completed successfully.
+
+What exists now
+- `PocketMuxApp/SSH/SSHConnection.swift`
+  - compile-safe interactive shell boundary added
+- `PocketMuxApp/SSH/SSHConnectionManager.swift`
+  - matching manager passthrough added
+- `COMPACT_CONTEXT.md`
+  - updated to reflect Slice 6A status
+- `PHASE_HANDOFF.md`
+  - updated to reflect Slice 6A status
+
+What Slice 6A deliberately does NOT do
+- no `withPTY`
+- no `PseudoTerminalRequest`
+- no `TTYOutput`
+- no `TTYStdinWriter`
+- no live `tmux attach-session` execution
+- no `ByteBuffer`-level PTY/channel streaming
+- no dynamic terminal sizing
+- no ANSI / VT100 renderer upgrade
+- no special key forwarding
+
+Acceptance result
+- build passes in GitHub Actions
+- `main` remains stable
+- feature branch implementation is green before merge
+- architecture boundary is ready for later transport fill-in
+
+---
+
+## LOCKED BASELINE AFTER SLICE 6A
+
+Stable baseline commit path
+- `main` contains the revert of the broken Slice 6 transport work
+- `feat/slice6-redo` contains the compile-safe boundary that passed CI
+
+Merge recommendation
+- Merge `feat/slice6-redo` into `main` before any further terminal transport work.
+
+Rule
+- Do not implement live PTY/tmux attach directly on `main`.
+
+---
+
+## SLICE 6B — NEXT
+
+Objective
+- Implement the real interactive tmux attach transport behind the already-established shell boundary, while keeping CI green at every checkpoint.
+
+Primary goal
+- Move from compile-safe shell boundary to real remote interactive terminal transport.
+
+In scope
+- inspect the resolved Citadel API actually available in CI / Xcode
+- implement the real interactive attach path incrementally
+- wire remote shell/channel output into the terminal session service
+- wire user input into remote stdin
+- keep build passing after each incremental slice
+
+Out of scope
+- multi-host support
+- Phase 3 work
+- public-key auth completion
+- production-grade host-key trust model
+- advanced terminal UI polish
+- iPad / macOS layout changes
+- session metadata UI expansion
+
+---
+
+## SLICE 6B IMPLEMENTATION RULES
+
+Hard constraints
+- CI must remain green after every step
+- do not land a large end-to-end PTY rewrite in one commit
+- transport work must be split into small compile-verifiable increments
+- if a Citadel API assumption is unverified, inspect first, then code
+- no placeholder claims in docs that say transport is complete before CI proves it
+
+Required branch strategy
+- create a dedicated branch for Slice 6B
+- keep each transport step isolated and reversible
+- do not squash exploratory failures into `main`
+
+Required verification rule
+1. run GitHub Actions build
+2. inspect first real errors if failure occurs
+3. fix only the smallest failing assumption
+4. rerun CI before proceeding
+
+---
+
+## SLICE 6B RECOMMENDED SUB-SLICES
+
+Slice 6B.1 — API verification only
+
+Goal
+- Verify the real Citadel interactive shell / PTY API shape currently resolved in CI.
+
+Deliverables
+- confirmed API notes in `COMPACT_CONTEXT.md`
+- confirmed next-action notes in `PHASE_HANDOFF.md`
+
+Do not
+- implement full attach flow yet
+
+Acceptance
+- exact API surface is known
+- no speculative transport code remains
+
+Slice 6B.2 — channel open + ready handshake
+
+Goal
+- Implement the smallest real shell open path through the existing boundary.
+
+Deliverables
+- real shell/channel open path behind `SSHConnection`
+- compile-safe readiness callback
+- no tmux attach yet if that risks another large failure
+
+Acceptance
+- app compiles
+- CI green
+- no broken assumptions around API visibility or types
+
+Slice 6B.3 — tmux attach command execution
+
+Goal
+- Send `tmux attach-session -t <sessionName>` after the shell/channel is ready.
+
+Deliverables
+- remote attach command wired
+- minimal output plumbing into terminal session service
+
+Acceptance
+- compile passes
+- command path is integrated without breaking architecture
+
+Slice 6B.4 — input forwarding
+
+Goal
+- Wire user keyboard input into remote stdin.
+
+Deliverables
+- service `send(_:)` reaches remote channel
+- minimal text input path works
+
+Acceptance
+- compile passes
+- no actor or lifecycle regressions
+
+Slice 6B.5 — lifecycle hardening
+
+Goal
+- Handle detach, cancellation, reconnect, and stream-end transitions cleanly.
+
+Deliverables
+- terminal state transitions audited
+- disconnect/end-of-stream behavior cleaned up
+- docs updated
+
+Acceptance
+- CI green
+- no leaked session task assumptions
+- no false `.attached` state after stream termination
+
+---
+
+## FILES MOST LIKELY TO CHANGE IN SLICE 6B
+
+Primary
+- `PocketMuxApp/SSH/SSHConnection.swift`
+- `PocketMuxApp/SSH/SSHConnectionManager.swift`
+- `PocketMuxApp/Terminal/TerminalAttachmentCoordinator.swift`
+- `PocketMuxApp/Terminal/TerminalSessionService.swift`
+
+Secondary
+- `PocketMuxApp/Terminal/TerminalContainerView.swift`
+- `COMPACT_CONTEXT.md`
+- `PHASE_HANDOFF.md`
+
+Optional later
+- terminal renderer files, if ANSI/VT100 rendering becomes necessary after transport works
+
+---
+
+## CURRENT KNOWN RISKS
+
+- Citadel interactive APIs may differ from assumed shell/PTY abstractions
+- prior full Slice 6 transport attempt already proved that speculative implementation can break CI
+- terminal rendering is still not a real VT100 parser
+- host-key trust remains non-production-safe
+- public-key auth remains incomplete
+
+---
+
+## ACCEPTANCE CRITERIA FOR FULL SLICE 6B
+
+Slice 6B is only complete when all of the following are true:
+1. interactive remote shell path is implemented behind the existing boundary
+2. tmux attach is actually invoked through that transport
+3. remote output reaches the terminal session service
+4. local input is forwarded back to the remote session
+5. lifecycle transitions are coherent on detach / failure / cancellation
+6. GitHub Actions iOS CI passes
+7. docs reflect actual verified state, not intended state
+
+---
+
+## DO NOT DO
+
+- do not mark transport complete before CI passes
+- do not update docs optimistically
+- do not merge experimental PTY work directly into `main`
+- do not add SwiftTerm in the same commit as first PTY transport wiring
+- do not expand scope into Phase 3
+
+---
+
+## RECOMMENDED NEXT COMMAND SEQUENCE
+
+git checkout main
+git pull --rebase origin main
+git merge --ff-only feat/slice6-redo
+git push origin main
+
+git checkout -b feat/slice6b-transport
+
+---
+
+## COPY/PASTE AGENT PROMPT — SLICE 6B START
+
+POCKETMUX — PHASE 2 / SLICE 6B
+
+Starting point is the green compile-safe shell boundary from Slice 6A.
+
+Locked constraints:
+- keep scope to one-host iPhone-only remote tmux
+- do not begin Phase 3
+- do not add multi-host support
+- do not claim transport is complete before CI proves it
+- keep GitHub Actions green after each increment
+
+Immediate task:
+1. Inspect the currently resolved Citadel API for interactive shell / PTY support.
+2. Update COMPACT_CONTEXT.md and PHASE_HANDOFF.md with verified API facts only.
+3. Implement the smallest compile-safe real transport increment possible.
+4. Do not implement the full PTY/tmux attach path in one jump.
+5. After each increment, run CI and stop if red.
+
+Priority files:
+- PocketMuxApp/SSH/SSHConnection.swift
+- PocketMuxApp/SSH/SSHConnectionManager.swift
+- PocketMuxApp/Terminal/TerminalAttachmentCoordinator.swift
+- PocketMuxApp/Terminal/TerminalSessionService.swift
+- COMPACT_CONTEXT.md
+- PHASE_HANDOFF.md
+
+Definition of done for this work session:
+- one small transport increment landed
+- CI result known
+- docs updated to factual current state
+- no speculative “complete” claims
