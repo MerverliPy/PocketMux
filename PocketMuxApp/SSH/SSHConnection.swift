@@ -72,6 +72,17 @@ actor SSHConnection {
         return String(buffer: stdout)
     }
 
+    // MARK: - Interactive Shell (boundary stub — Slice 6A)
+
+    /// Placeholder for a future interactive shell channel.
+    ///
+    /// PTY request, shell channel streaming, and tmux attach wiring are all deferred to Slice 6B.
+    /// This method exists only to establish the API boundary so call sites can be written
+    /// and compile-verified without committing to a specific Citadel channel API.
+    func openInteractiveShell() async throws {
+        throw ConnectionError.notYetImplemented
+    }
+
     // MARK: - Disconnect
 
     func disconnect() async {

@@ -27,6 +27,14 @@ Implement the one-host connection loop: host profile, SSH connection, session di
 ## Phase 2 Slice 5 status
 COMPLETE.
 
+## Phase 2 Slice 6A status
+COMPLETE. Interactive shell API boundary introduced in SSHConnection and SSHConnectionManager.
+Live tmux/PTY transport remains fully deferred to Slice 6B.
+
+## Files changed in Phase 2 Slice 6A
+- PocketMuxApp/SSH/SSHConnection.swift (added openInteractiveShell stub — throws notYetImplemented)
+- PocketMuxApp/SSH/SSHConnectionManager.swift (added openInteractiveShell passthrough)
+
 ## Files created or changed in Phase 2 Slice 5
 - PocketMuxApp/Terminal/TerminalSessionState.swift (new)
 - PocketMuxApp/Terminal/TerminalAttachmentCoordinator.swift (new)
@@ -55,9 +63,11 @@ COMPLETE.
 ## No new package dependency added
 UITextView used as rendering surface. SwiftTerm is the intended swap target once channel wiring is confirmed.
 
-## Open items before Slice 6
-- Verify Citadel SSHClient API for shell channels / exec channels
-- Wire TerminalAttachmentCoordinator.attach() to open a real SSH channel + PTY
-- Exec `tmux attach-session -t <sessionName>` and stream output to onOutput callback
+## Open items for Slice 6B
+- Verify Citadel SSHClient API for shell channels (exec channels vs interactive shell channels)
+- Wire TerminalAttachmentCoordinator.attach() to call openInteractiveShell, then:
+  - Request PTY with renderer-reported dimensions
+  - Exec `tmux attach-session -t <sessionName>`
+  - Stream stdout/stderr bytes to onOutput callback
 - Wire TerminalSessionService.send() → coordinator → channel stdin
 - Optionally add SwiftTerm at that point for full VT100 rendering

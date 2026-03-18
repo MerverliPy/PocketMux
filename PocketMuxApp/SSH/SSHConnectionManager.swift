@@ -76,6 +76,14 @@ final class SSHConnectionManager: ObservableObject {
         return try await connection.exec(command)
     }
 
+    /// Passthrough to SSHConnection.openInteractiveShell (Slice 6A boundary stub).
+    ///
+    /// Live PTY/tmux wiring is deferred to Slice 6B.
+    func openInteractiveShell() async throws {
+        guard let connection else { throw SSHConnection.ConnectionError.notConnected }
+        try await connection.openInteractiveShell()
+    }
+
     // MARK: - Private
 
     private func reset() {
