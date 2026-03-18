@@ -56,10 +56,61 @@ Keep the one-host PocketMux terminal path stable while moving from a compile-saf
 - no ANSI / VT100 parsing
 - no special key forwarding
 
+## Verified Citadel API — Slice 6B.1 (confirmed 2026-03-17)
+
+Resolved version: **0.12.0** (via `upToNextMajorVersion` from 0.6.0)
+
+### Confirmed connect API (already working in CI)
+```swift
+// SSHClientSettings in Sources/Citadel/ClientSession.swift
+SSHClientSettings(
+    host: String,
+    port: Int = 22,
+    authenticationMethod: @Sendable @escaping () -> SSHAuthenticationMethod,
+    hostKeyValidator: SSHHostKeyValidator
+)
+SSHClient.connect(to settings: SSHClientSettings) async throws -> SSHClient
+```
+
+### Confirmed interactive shell / PTY API
+```swift
+// On SSHClient — both require @available(macOS 15.0, *); no iOS floor declared
+func withPTY(
+    _ request: SSHChannelRequestEvent.PseudoTerminalRequest,
+    environment: [SSHChannelRequestEvent.EnvironmentRequest] = [],
+    perform: (_ inbound: TTYOutput, _ outbound: TTYStdinWriter) async throws -> Void
+) async throws
+
+func withTTY(
+    environment: [SSHChannelRequestEvent.EnvironmentRequest] = [],
+    perform: (_ inbound: TTYOutput, _ outbound: TTYStdinWriter) async throws -> Void
+) async throws
+```
+
+### Output and input types
+```swift
+// TTYOutput — @available(macOS 15.0, *) — AsyncSequence<ExecCommandOutput>
+enum ExecCommandOutput {
+    case stdout(ByteBuffer)
+    case stderr(ByteBuffer)
+}
+
+// TTYStdinWriter
+func write(_ buffer: ByteBuffer) async throws
+func changeSize(cols: Int, rows: Int, pixelWidth: Int, pixelHeight: Int) async throws
+```
+
+### Notes
+- `withPTY` = PTY allocation + shell request (required for tmux attach)
+- `withTTY` = raw shell, no PTY
+- Both use the same closure shape `(inbound: TTYOutput, outbound: TTYStdinWriter)`
+- `@available(macOS 15.0, *)` — `*` covers iOS without a version floor; compile on iOS 17 target needs CI confirmation before relying on this
+- tmux requires PTY → use `withPTY`, not `withTTY`
+
 ## Slice 6B target
 Implement real interactive tmux attach transport behind the existing boundary in small steps:
-1. verify actual resolved Citadel interactive shell / PTY API
-2. add the smallest real transport increment
+1. ~~verify actual resolved Citadel interactive shell / PTY API~~ **done — Slice 6B.1**
+2. add the smallest real transport increment (Slice 6B.2: channel open via `withPTY`)
 3. keep CI green
 4. stop on red and fix only the smallest failing assumption
 

@@ -123,36 +123,75 @@ Required verification rule
 
 ## SLICE 6B RECOMMENDED SUB-SLICES
 
-Slice 6B.1 — API verification only
+Slice 6B.1 — API verification only — **COMPLETE (2026-03-17)**
+
+Verified facts (source: Citadel 0.12.0 at orlandos-nl/Citadel, confirmed via GitHub source fetch)
+
+Citadel version resolved: 0.12.0 (upToNextMajorVersion from 0.6.0)
+
+Confirmed connect API (already green in CI):
+- `SSHClientSettings(host:port:authenticationMethod:hostKeyValidator:)` — `authenticationMethod` is a closure `@Sendable @escaping () -> SSHAuthenticationMethod`
+- `SSHClient.connect(to: SSHClientSettings) async throws -> SSHClient`
+
+Confirmed interactive shell / PTY API:
+```swift
+// @available(macOS 15.0, *) — no iOS minimum floor declared; * covers all other platforms
+SSHClient.withPTY(
+    _ request: SSHChannelRequestEvent.PseudoTerminalRequest,
+    environment: [SSHChannelRequestEvent.EnvironmentRequest] = [],
+    perform: (_ inbound: TTYOutput, _ outbound: TTYStdinWriter) async throws -> Void
+) async throws
+
+SSHClient.withTTY(
+    environment: [SSHChannelRequestEvent.EnvironmentRequest] = [],
+    perform: (_ inbound: TTYOutput, _ outbound: TTYStdinWriter) async throws -> Void
+) async throws
+```
+
+Confirmed output/input types:
+```swift
+TTYOutput: AsyncSequence  // @available(macOS 15.0, *), yields ExecCommandOutput
+enum ExecCommandOutput { case stdout(ByteBuffer); case stderr(ByteBuffer) }
+TTYStdinWriter.write(_ buffer: ByteBuffer) async throws
+TTYStdinWriter.changeSize(cols: Int, rows: Int, pixelWidth: Int, pixelHeight: Int) async throws
+```
+
+Key decisions from API review:
+- tmux requires PTY allocation → must use `withPTY`, not `withTTY`
+- `PTY`/`withTTY` availability: `@available(macOS 15.0, *)` with `*` covers iOS without a floor
+  — iOS 17 compile behavior is unconfirmed; CI must verify before relying on it
+- The `withPTY` closure owns the session lifetime; detach/cancel happens via task cancellation or closing the `perform` closure normally
+
+Slice 6B.2 — channel open + ready handshake — **NEXT**
 
 Goal
-- Verify the real Citadel interactive shell / PTY API shape currently resolved in CI.
+- Replace `openInteractiveShell()` stub in `SSHConnection` with a real `withPTY` call that compiles and stays green in CI.
+
+Exact API to use:
+```swift
+try await client.withPTY(
+    SSHChannelRequestEvent.PseudoTerminalRequest(
+        term: "xterm-256color",
+        terminalCharacterWidth: UInt32(cols),
+        terminalRowHeight: UInt32(rows),
+        terminalPixelWidth: 0,
+        terminalPixelHeight: 0,
+        terminalModes: .init([])
+    )
+) { inbound, outbound in
+    // minimal: drain inbound and hold open; no tmux command yet
+}
+```
 
 Deliverables
-- confirmed API notes in `COMPACT_CONTEXT.md`
-- confirmed next-action notes in `PHASE_HANDOFF.md`
-
-Do not
-- implement full attach flow yet
-
-Acceptance
-- exact API surface is known
-- no speculative transport code remains
-
-Slice 6B.2 — channel open + ready handshake
-
-Goal
-- Implement the smallest real shell open path through the existing boundary.
-
-Deliverables
-- real shell/channel open path behind `SSHConnection`
-- compile-safe readiness callback
-- no tmux attach yet if that risks another large failure
+- `SSHConnection.openInteractiveShell()` replaced with real `withPTY` path (no longer throws `.notYetImplemented`)
+- closure receives `(TTYOutput, TTYStdinWriter)` — store or pass upstream
+- no tmux attach command yet (added in 6B.3)
 
 Acceptance
 - app compiles
-- CI green
-- no broken assumptions around API visibility or types
+- CI green on `feat/slice6b-transport` branch
+- `@available(macOS 15.0, *)` does not cause iOS 17 build error (first real confirmation)
 
 Slice 6B.3 — tmux attach command execution
 
